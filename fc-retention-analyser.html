@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Foodie Coaches — Retention Analyser</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Source+Sans+3:wght@300;400;600&family=Source+Code+Pro:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #f5f0e8;
+    --surface: #ede8de;
+    --surface2: #e4ddd0;
+    --border: #cec5b4;
+    --accent: #c0392b;
+    --accent-dim: #a93226;
+    --accent-light: rgba(192, 57, 43, 0.08);
+    --text: #1a1612;
+    --text-muted: #6b5f50;
+    --text-dim: #9c8f7e;
+    --card-bg: #ede8de;
+    --ink: #2c2318;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+  }
+
+  /* Subtle grid texture */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(160,140,110,0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(160,140,110,0.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Auth screen */
+  .auth-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .auth-screen.hidden { display: none; }
+
+  .auth-box {
+    width: 100%;
+    max-width: 420px;
+    padding: 48px 40px;
+    text-align: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .auth-eyebrow {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .auth-logo {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .auth-logo em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .auth-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 48px;
+    line-height: 1.5;
+  }
+
+  .auth-divider {
+    width: 40px;
+    height: 2px;
+    background: var(--accent);
+    margin: 0 auto 48px;
+  }
+
+  .auth-btn {
+    width: 100%;
+    background: var(--ink);
+    border: none;
+    border-radius: 2px;
+    padding: 16px 24px;
+    color: var(--bg);
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    transition: background 0.2s;
+  }
+
+  .auth-btn:hover { background: var(--accent); }
+  .auth-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+  .auth-note {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 16px;
+    font-family: 'Source Code Pro', monospace;
+  }
+
+  .auth-error {
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 12px;
+    display: none;
+    font-family: 'Source Code Pro', monospace;
+  }
+
+  .auth-error.visible { display: block; }
+
+  /* Layout */
+  .app { display: none; position: relative; z-index: 1; }
+  .app.visible { display: block; }
+
+  /* Top bar */
+  .topbar {
+    border-bottom: 1px solid var(--border);
+    padding: 14px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .topbar-brand {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .topbar-brand em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .topbar-email {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .signout-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 6px 12px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+  }
+
+  .signout-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Main content */
+  .main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 60px 40px 100px;
+  }
+
+  .page-header { margin-bottom: 48px; }
+
+  .page-eyebrow {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: block;
+  }
+
+  .page-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--ink);
+    margin-bottom: 16px;
+  }
+
+  .page-title em {
+    font-style: italic;
+    color: var(--accent);
+  }
+
+  .page-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.7;
+    max-width: 560px;
+  }
+
+  /* Suggested queries */
+  .suggestions {
+    margin-bottom: 32px;
+  }
+
+  .suggestions-label {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .suggestion-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'Source Sans 3', sans-serif;
+  }
+
+  .pill:hover {
+    background: var(--accent-light);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Query input */
+  .query-wrap { margin-bottom: 16px; }
+
+  .query-label {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .query-input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 18px 20px;
+    color: var(--ink);
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 16px;
+    font-weight: 300;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    caret-color: var(--accent);
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.6;
+  }
+
+  .query-input::placeholder { color: var(--text-dim); }
+
+  .query-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.06);
+  }
+
+  .query-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 48px;
+  }
+
+  .query-hint {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .analyse-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 2px;
+    padding: 12px 28px;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-transform: uppercase;
+  }
+
+  .analyse-btn:hover { background: var(--accent-dim); }
+  .analyse-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Loading */
+  .loading {
+    display: none;
+    padding: 48px 0;
+    text-align: center;
+  }
+
+  .loading.visible { display: block; }
+
+  .loading-bar {
+    width: 100%;
+    height: 2px;
+    background: var(--surface2);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .loading-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    animation: loadingFill 3s ease-in-out infinite;
+  }
+
+  @keyframes loadingFill {
+    0% { width: 0%; }
+    50% { width: 80%; }
+    100% { width: 95%; }
+  }
+
+  .loading-text {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  /* Results */
+  .results { display: none; }
+  .results.visible { display: block; }
+
+  .results-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--ink);
+  }
+
+  .results-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+
+  .results-meta {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+
+  .results-query-display {
+    background: var(--accent-light);
+    border-left: 3px solid var(--accent);
+    padding: 14px 18px;
+    margin-bottom: 28px;
+    font-size: 14px;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  .analysis-body {
+    font-size: 15px;
+    line-height: 1.85;
+    color: var(--text);
+    white-space: pre-wrap;
+    font-family: 'Source Sans 3', sans-serif;
+    font-weight: 300;
+  }
+
+  .analysis-body strong {
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .sources-section {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .sources-label {
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .source-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .source-pill {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 4px 10px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .new-query-btn {
+    margin-top: 32px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 10px 20px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: all 0.2s;
+  }
+
+  .new-query-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Error */
+  .error-msg {
+    display: none;
+    background: rgba(192, 57, 43, 0.06);
+    border: 1px solid rgba(192, 57, 43, 0.2);
+    border-radius: 2px;
+    padding: 16px 20px;
+    font-family: 'Source Code Pro', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    margin-top: 16px;
+  }
+
+  .error-msg.visible { display: block; }
+</style>
+</head>
+<body>
+
+<!-- Auth screen -->
+<div class="auth-screen" id="authScreen">
+  <div class="auth-box">
+    <span class="auth-eyebrow">Foodie Coaches // Leadership</span>
+    <div class="auth-logo">Retention<br><em>Analyser</em></div>
+    <div class="auth-divider"></div>
+    <p class="auth-subtitle">Query thousands of coaching transcripts to surface retention risk patterns, client concerns, and program sentiment.</p>
+    <button class="auth-btn" onclick="signInWithGoogle()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Sign in with Google
+    </button>
+    <p class="auth-note">Restricted to @foodiecoaches.com accounts</p>
+    <div class="auth-error" id="authError">Access restricted to Foodie Coaches accounts only.</div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div class="app" id="app">
+
+  <div class="topbar">
+    <div class="topbar-brand">Retention <em>Analyser</em></div>
+    <div class="topbar-right">
+      <span class="topbar-email" id="userEmail"></span>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div class="page-header">
+      <span class="page-eyebrow">Leadership Intelligence Tool</span>
+      <h1 class="page-title">What are<br>members <em>really</em><br>saying?</h1>
+      <p class="page-desc">Ask any question about client sentiment, retention risk, program concerns, or coaching patterns. Claude analyses thousands of real coaching transcripts and surfaces what the data shows.</p>
+    </div>
+
+    <div class="suggestions">
+      <span class="suggestions-label">Suggested queries</span>
+      <div class="suggestion-pills">
+        <div class="pill" onclick="setQuery(this)">How many clients have questioned the value of the program?</div>
+        <div class="pill" onclick="setQuery(this)">Which clients have asked about pausing or cancelling?</div>
+        <div class="pill" onclick="setQuery(this)">What are the most common cost-related concerns from members?</div>
+        <div class="pill" onclick="setQuery(this)">How are coaches handling clients who want to exit?</div>
+        <div class="pill" onclick="setQuery(this)">Which clients seem most at risk of leaving?</div>
+        <div class="pill" onclick="setQuery(this)">What objections do members raise about the program?</div>
+      </div>
+    </div>
+
+    <div class="query-wrap">
+      <span class="query-label">Your question</span>
+      <textarea
+        class="query-input"
+        id="queryInput"
+        placeholder="Ask anything about member sentiment, retention risk, program concerns, or coaching patterns..."
+      ></textarea>
+    </div>
+
+    <div class="query-footer">
+      <span class="query-hint">Searches across all coaching transcripts — be as specific or broad as you like</span>
+      <button class="analyse-btn" id="analyseBtn" onclick="analyse()">Analyse →</button>
+    </div>
+
+    <div class="loading" id="loading">
+      <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+      <div class="loading-text">Searching transcripts and generating analysis...</div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="results" id="results">
+      <div class="results-header">
+        <div class="results-title">Analysis</div>
+        <div class="results-meta" id="resultsMeta"></div>
+      </div>
+      <div class="results-query-display" id="resultsQuery"></div>
+      <div class="analysis-body" id="analysisBody"></div>
+      <div class="sources-section">
+        <span class="sources-label">Sources</span>
+        <div class="source-pills" id="sourcePills"></div>
+      </div>
+      <button class="new-query-btn" onclick="resetQuery()">← New query</button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const WORKER_URL = 'https://fc-matcher-proxy.samuel-robertson.workers.dev';
+const SUPABASE_URL = 'https://ezjjtnogeliossexbhkv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6amp0bm9nZWxpb3NzZXhiaGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MjEwOTEsImV4cCI6MjA4OTI5NzA5MX0.LWjxAsOd1T0agcuWSYekfIgpbayoIwBQgajyPAurJgk';
+const ALLOWED_DOMAIN = 'foodiecoaches.com';
+const REDIRECT_URL = 'https://samuelrobertson-dot.github.io/fc-retention-analyser/';
+
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- AUTH ---
+async function signInWithGoogle() {
+  document.getElementById('authError').classList.remove('visible');
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: REDIRECT_URL }
+  });
+  if (error) {
+    document.getElementById('authError').textContent = error.message;
+    document.getElementById('authError').classList.add('visible');
+  }
+}
+
+async function signOut() {
+  await sb.auth.signOut();
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('authScreen').classList.remove('hidden');
+}
+
+function showApp(email) {
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('app').classList.add('visible');
+  document.getElementById('userEmail').textContent = email;
+}
+
+function showAuthError(message) {
+  document.getElementById('authError').textContent = message;
+  document.getElementById('authError').classList.add('visible');
+  sb.auth.signOut();
+}
+
+window.addEventListener('load', async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    const email = session.user.email;
+    if (email.endsWith('@' + ALLOWED_DOMAIN)) {
+      showApp(email);
+    } else {
+      showAuthError('Access restricted to @foodiecoaches.com accounts only.');
+    }
+  }
+
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      const email = session.user.email;
+      if (email.endsWith('@' + ALLOWED_DOMAIN)) {
+        showApp(email);
+      } else {
+        showAuthError('Access restricted to @foodiecoaches.com accounts only.');
+      }
+    }
+  });
+});
+
+// --- QUERY ---
+function setQuery(el) {
+  document.getElementById('queryInput').value = el.textContent;
+  document.getElementById('queryInput').focus();
+}
+
+function resetQuery() {
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('errorMsg').classList.remove('visible');
+  document.getElementById('queryInput').value = '';
+  document.getElementById('analyseBtn').disabled = false;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// --- ANALYSE ---
+async function getEmbedding(text) {
+  const res = await fetch(`${WORKER_URL}/embed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: text })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Embedding failed');
+  return data.data[0].embedding;
+}
+
+async function searchTranscripts(embedding) {
+  const res = await fetch(`${WORKER_URL}/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query_embedding: embedding, match_count: 30 })
+  });
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error(JSON.stringify(data));
+  return data;
+}
+
+async function getAnalysis(query, chunks, userEmail) {
+  const res = await fetch(`${WORKER_URL}/analyse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, chunks, user_email: userEmail })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Analysis failed');
+  return data.analysis;
+}
+
+async function analyse() {
+  const query = document.getElementById('queryInput').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('analyseBtn');
+  const loading = document.getElementById('loading');
+  const results = document.getElementById('results');
+  const errorMsg = document.getElementById('errorMsg');
+
+  btn.disabled = true;
+  loading.classList.add('visible');
+  results.classList.remove('visible');
+  errorMsg.classList.remove('visible');
+
+  try {
+    const { data: { session } } = await sb.auth.getSession();
+    const userEmail = session?.user?.email || 'unknown';
+
+    const embedding = await getEmbedding(query);
+    const chunks = await searchTranscripts(embedding);
+    const analysis = await getAnalysis(query, chunks, userEmail);
+
+    loading.classList.remove('visible');
+
+    // Render results
+    document.getElementById('resultsQuery').textContent = query;
+    document.getElementById('resultsMeta').textContent = `${chunks.length} transcript excerpts analysed`;
+    document.getElementById('analysisBody').textContent = analysis;
+
+    // Source pills
+    const sourcePills = document.getElementById('sourcePills');
+    sourcePills.innerHTML = '';
+    const uniqueFiles = [...new Set(chunks.map(c => c.filename))].slice(0, 20);
+    uniqueFiles.forEach(f => {
+      const pill = document.createElement('div');
+      pill.className = 'source-pill';
+      pill.textContent = f.replace('.docx', '').replace(/^FC\s*[_&]\s*/i, '');
+      pill.title = f;
+      sourcePills.appendChild(pill);
+    });
+
+    results.classList.add('visible');
+    document.getElementById('analysisBody').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+  } catch (err) {
+    loading.classList.remove('visible');
+    errorMsg.textContent = err.message;
+    errorMsg.classList.add('visible');
+    btn.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
