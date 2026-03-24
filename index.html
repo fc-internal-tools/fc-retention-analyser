@@ -584,15 +584,23 @@ function showPanel(name) {
 }
 
 // --- API ---
-async function getEmbedding(text) {
-  const res = await fetch(`${WORKER_URL}/embed`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: text })
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || 'Embedding failed');
-  return data.data[0].embedding;
+async function getEmbedding(text, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${WORKER_URL}/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: text })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Embedding failed');
+      if (!data.data?.[0]?.embedding) throw new Error('Empty embedding response');
+      return data.data[0].embedding;
+    } catch (err) {
+      if (attempt === retries) throw err;
+      await new Promise(r => setTimeout(r, 1000 * attempt));
+    }
+  }
 }
 
 async function searchTranscripts(embedding) {
