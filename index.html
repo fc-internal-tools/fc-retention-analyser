@@ -165,7 +165,6 @@
     height: calc(100vh - 49px);
   }
 
-  /* Left panel — query */
   .panel-left {
     width: 340px;
     flex-shrink: 0;
@@ -203,7 +202,6 @@
     display: block;
   }
 
-  /* Suggestions */
   .suggestions { margin-bottom: 24px; }
 
   .pill {
@@ -223,6 +221,47 @@
     line-height: 1.4;
   }
   .pill:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Query history */
+  .history-section {
+    margin-bottom: 24px;
+    display: none;
+  }
+  .history-section.visible { display: block; }
+
+  .history-pill {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    text-align: left;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 7px 10px 7px 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 5px;
+    line-height: 1.4;
+    gap: 8px;
+  }
+  .history-pill:hover { border-color: var(--accent); color: var(--text-muted); }
+
+  .history-pill-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+  }
+
+  .history-pill-arrow {
+    flex-shrink: 0;
+    opacity: 0.4;
+    font-size: 10px;
+  }
 
   /* Query input */
   .query-wrap { flex: 1; display: flex; flex-direction: column; }
@@ -268,7 +307,7 @@
   .analyse-btn:hover { background: var(--accent-dim); }
   .analyse-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* Right panel — results */
+  /* Right panel */
   .panel-right {
     flex: 1;
     overflow-y: auto;
@@ -277,7 +316,6 @@
     flex-direction: column;
   }
 
-  /* Empty state */
   .empty-state {
     flex: 1;
     display: flex;
@@ -289,10 +327,7 @@
     gap: 12px;
   }
 
-  .empty-icon {
-    font-size: 40px;
-    opacity: 0.3;
-  }
+  .empty-icon { font-size: 40px; opacity: 0.3; }
 
   .empty-title {
     font-family: 'Bebas Neue', sans-serif;
@@ -307,7 +342,6 @@
     color: var(--text-dim);
   }
 
-  /* Loading */
   .loading-state {
     flex: 1;
     display: none;
@@ -335,9 +369,16 @@
     letter-spacing: 0.1em;
   }
 
-  /* Results */
   .results-state { display: none; flex-direction: column; gap: 0; }
   .results-state.visible { display: flex; }
+
+  .result-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 4px;
+  }
 
   .result-query-tag {
     font-family: 'DM Mono', monospace;
@@ -364,6 +405,25 @@
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border);
   }
+
+  /* Copy button */
+  .copy-btn {
+    flex-shrink: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 8px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { border-color: #5c9e6e; color: #5c9e6e; }
 
   .analysis-body {
     font-size: 14px;
@@ -403,7 +463,6 @@
     text-overflow: ellipsis;
   }
 
-  /* Error */
   .error-state {
     display: none;
     background: rgba(192,57,43,0.06);
@@ -468,6 +527,11 @@
         <div class="pill" onclick="setQuery(this)">What objections do members raise about the program?</div>
       </div>
 
+      <div class="history-section" id="historySection">
+        <span class="section-label">Recent queries</span>
+        <div id="historyList"></div>
+      </div>
+
       <div class="query-wrap">
         <span class="section-label">Your question</span>
         <textarea
@@ -496,8 +560,13 @@
       </div>
 
       <div class="results-state" id="resultsState">
-        <div class="result-query-tag">Analysis</div>
-        <div class="result-query-text" id="resultQuery"></div>
+        <div class="result-header">
+          <div>
+            <div class="result-query-tag">Analysis</div>
+            <div class="result-query-text" id="resultQuery"></div>
+          </div>
+          <button class="copy-btn" id="copyBtn" onclick="copyAnalysis()">Copy</button>
+        </div>
         <div class="result-meta" id="resultMeta"></div>
         <div class="analysis-body" id="analysisBody"></div>
         <span class="sources-label">Sources</span>
@@ -514,6 +583,7 @@ const SUPABASE_URL = 'https://ezjjtnogeliossexbhkv.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV6amp0bm9nZWxpb3NzZXhiaGt2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3MjEwOTEsImV4cCI6MjA4OTI5NzA5MX0.LWjxAsOd1T0agcuWSYekfIgpbayoIwBQgajyPAurJgk';
 const ALLOWED_DOMAIN = 'foodiecoaches.com';
 const REDIRECT_URL = 'https://fc-internal-tools.github.io/fc-retention-analyser/';
+const MAX_HISTORY = 5;
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -541,6 +611,7 @@ function showApp(email) {
   document.getElementById('authScreen').classList.add('hidden');
   document.getElementById('app').classList.add('visible');
   document.getElementById('userEmail').textContent = email;
+  renderHistory();
 }
 
 function showAuthError(message) {
@@ -570,6 +641,79 @@ window.addEventListener('load', async () => {
     }
   });
 });
+
+// --- QUERY HISTORY ---
+function getHistory() {
+  try {
+    return JSON.parse(sessionStorage.getItem('fc_query_history') || '[]');
+  } catch { return []; }
+}
+
+function addToHistory(query) {
+  const history = getHistory().filter(q => q !== query);
+  history.unshift(query);
+  sessionStorage.setItem('fc_query_history', JSON.stringify(history.slice(0, MAX_HISTORY)));
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const section = document.getElementById('historySection');
+  const list = document.getElementById('historyList');
+
+  if (!history.length) {
+    section.classList.remove('visible');
+    return;
+  }
+
+  section.classList.add('visible');
+  list.innerHTML = '';
+  history.forEach(q => {
+    const el = document.createElement('div');
+    el.className = 'history-pill';
+    el.innerHTML = `<span class="history-pill-text">${q}</span><span class="history-pill-arrow">↑</span>`;
+    el.onclick = () => {
+      document.getElementById('queryInput').value = q;
+      analyse();
+    };
+    list.appendChild(el);
+  });
+}
+
+// --- COPY TO CLIPBOARD ---
+async function copyAnalysis() {
+  const query = document.getElementById('resultQuery').textContent;
+  const analysis = document.getElementById('analysisBody').textContent;
+  const text = `QUERY: ${query}\n\n${analysis}`;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  } catch {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  }
+}
 
 // --- UI HELPERS ---
 function setQuery(el) {
@@ -660,6 +804,7 @@ async function analyse() {
       sourcePills.appendChild(pill);
     });
 
+    addToHistory(query);
     showPanel('results');
 
   } catch (err) {
